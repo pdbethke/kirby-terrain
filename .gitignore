@@ -1,0 +1,31 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+*.egg-info/
+.idea/
+.vscode/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+build/
+dist/
+
+# Character files are never committed here — not published ones, and not the
+# maintainer's own. A .hdc is a machine-readable build; committing published
+# characters redistributes stat blocks, and committing authored ones puts a
+# corpus in a repo that promises to carry none. kirby-cost settled this the
+# same way; see its .gitignore.
+#
+# Real-file tests read KIRBY_COMBAT_AUTHORED and skip when it is unset.
+# See tests/corpus.py.
+tests/fixtures/*.hdc
+.movement-*.md
+.superpowers/
+
+# Any venv variant, not just the exact name .venv — a renamed one
+# (.venv-dead-py312) slipped past `.venv/` and put 5.8G of CUDA libraries
+# into a commit, which GitHub rejected on push.
+.venv*/
