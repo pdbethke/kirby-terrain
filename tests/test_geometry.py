@@ -59,3 +59,13 @@ def test_geometry_is_immutable():
     p = Point(1.0, 2.0)
     with pytest.raises(Exception):
         p.x = 5.0  # type: ignore[misc]
+
+
+def test_a_polygon_cannot_be_reshaped_after_construction():
+    """frozen=True alone would not give this: a list field stays mutable
+    in place, so a polygon's degeneracy and centroid could change under
+    a caller that had already read them."""
+    square = Polygon([Point(0.0, 0.0), Point(2.0, 0.0), Point(2.0, 2.0), Point(0.0, 2.0)])
+    assert isinstance(square.points, tuple)
+    with pytest.raises(AttributeError):
+        square.points.append(Point(9.0, 9.0))  # type: ignore[attr-defined]

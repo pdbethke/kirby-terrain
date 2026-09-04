@@ -45,7 +45,11 @@ class Segment:
 @dataclass(frozen=True)
 class Polygon:
     """A closed region — a floor, a hazard zone, a room."""
-    points: list[Point]
+    points: tuple[Point, ...] | list[Point]
+
+    def __post_init__(self) -> None:
+        """Coerce the points list to a tuple for true immutability."""
+        object.__setattr__(self, "points", tuple(self.points))
 
     @property
     def is_degenerate(self) -> bool:
