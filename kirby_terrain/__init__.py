@@ -13,7 +13,10 @@ from kirby_terrain.geometry import Point, Polygon, Segment
 from kirby_terrain.objects import TerrainObject
 
 __all__ = [
-    "Point", "Segment", "Polygon",
+    "OBJECT_DURABILITY",
+    "ObjectDurability",
+    "Point",
+    "Polygon",
+    "Segment",
     "TerrainObject",
-    "ObjectDurability", "OBJECT_DURABILITY",
 ]

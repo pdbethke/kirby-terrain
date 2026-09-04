@@ -10,11 +10,11 @@ from kirby_terrain import OBJECT_DURABILITY, Point, Polygon, Segment, TerrainObj
 
 
 def _wall(**kw) -> TerrainObject:
-    base = dict(
-        id="w1", name="north wall", kind="brick wall",
-        shape=Segment(Point(0.0, 0.0), Point(5.0, 0.0)),
-        height_m=4.0,
-    )
+    base = {
+        "id": "w1", "name": "north wall", "kind": "brick wall",
+        "shape": Segment(Point(0.0, 0.0), Point(5.0, 0.0)),
+        "height_m": 4.0,
+    }
     base.update(kw)
     return TerrainObject(**base)
 
@@ -69,12 +69,26 @@ def test_sound_blocking_is_carried_separately():
 
 
 def test_a_zone_is_a_polygon():
+    """A floor has no honest row in the Objects Table (it holds only walls,
+    doors and glass), so an unidentified object states its own numbers."""
     z = TerrainObject(
-        id="z1", name="floor", kind="concrete wall",
+        id="z1", name="floor", kind=None,
         shape=Polygon([Point(0.0, 0.0), Point(2.0, 0.0), Point(2.0, 2.0)]),
         height_m=0.0,
+        pd_override=0, ed_override=0, body_override=0,
     )
     assert isinstance(z.shape, Polygon)
+
+
+def test_an_unidentified_object_with_full_overrides_works():
+    z = _wall(kind=None, pd_override=1, ed_override=2, body_override=3)
+    assert (z.pd, z.ed, z.body) == (1, 2, 3)
+    assert z.resistant is True
+
+
+def test_an_unidentified_object_missing_an_override_raises():
+    with pytest.raises(ValueError, match="pd_override"):
+        _wall(kind=None, ed_override=2, body_override=3)
 
 
 def test_every_table_kind_can_build_an_object():

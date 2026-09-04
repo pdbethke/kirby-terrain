@@ -38,7 +38,11 @@ class Segment:
     @property
     def is_degenerate(self) -> bool:
         """A segment going nowhere. Readers produce these from malformed
-        exports; callers should skip rather than reason about them."""
+        exports; callers should skip rather than reason about them.
+
+        This is an exact-equality check (`length_m == 0.0`), not a
+        tolerance. A segment that is merely very short is not degenerate;
+        filtering near-zero-length segments is the caller's job."""
         return self.length_m == 0.0
 
 
@@ -55,7 +59,13 @@ class Polygon:
     def is_degenerate(self) -> bool:
         """Fewer than three points, or three-plus points enclosing no area.
         The area test matters: collinear points pass a count check and
-        enclose nothing."""
+        enclose nothing.
+
+        This is an exact-equality check (`_twice_signed_area() == 0.0`), not
+        a tolerance; filtering near-degenerate shapes is the caller's job.
+        The area is computed in the XY plan view only, so a vertical
+        polygon — an upright pane standing in the XZ or YZ plane — reports
+        as degenerate here even though it encloses real area in 3D."""
         if len(self.points) < 3:
             return True
         return self._twice_signed_area() == 0.0

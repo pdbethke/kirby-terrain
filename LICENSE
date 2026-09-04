@@ -141,6 +141,9 @@ Required Notice: Copyright (c) 2026 Peter D Bethke
 Notices section of the licence. It must travel with any copy of this
 software or any part of it.)
 
-This package contains no Hero Games data or intellectual property. Durability
-values are game statistics transcribed from the HERO System rulebook, which
-operators are expected to own independently for reference and context.
+This package reproduces no rules text or prose from the HERO System rulebook.
+The PD, ED and BODY values in `durability.py` are bare game statistics —
+numbers, not the rule or the writing around them — transcribed for use by
+this platform's engines.
+
+HERO System and HERO Designer are the property of their respective owners.

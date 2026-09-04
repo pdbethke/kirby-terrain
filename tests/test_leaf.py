@@ -7,8 +7,10 @@ so this walks the package's own imports instead.
 import ast
 import pathlib
 import sys
+import tomllib
 
 PACKAGE = pathlib.Path(__file__).resolve().parent.parent / "kirby_terrain"
+PYPROJECT = pathlib.Path(__file__).resolve().parent.parent / "pyproject.toml"
 STDLIB = set(sys.stdlib_module_names)
 
 
@@ -37,3 +39,13 @@ def test_the_guard_would_notice_a_dependency():
     would pass no matter what was imported."""
     assert "os" in STDLIB
     assert "numpy" not in STDLIB and "PIL" not in STDLIB
+
+
+def test_pyproject_declares_zero_dependencies():
+    """The import-walk above only catches a dependency once code actually
+    imports it. Someone could add `dependencies = ["pillow"]` to
+    pyproject.toml and every test would stay green until then. Pin the
+    declaration itself."""
+    with open(PYPROJECT, "rb") as f:
+        data = tomllib.load(f)
+    assert data["project"]["dependencies"] == []

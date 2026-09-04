@@ -3,7 +3,7 @@
 There is no pixel below a reader. A source states its own scale, the
 reader resolves it, and everything from here down speaks one unit.
 """
-import math
+import dataclasses
 
 import pytest
 
@@ -57,7 +57,7 @@ def test_geometry_is_immutable():
     """These describe what is physically there. Nothing mutates them; a
     frozen dataclass says so and makes them safe to share."""
     p = Point(1.0, 2.0)
-    with pytest.raises(Exception):
+    with pytest.raises(dataclasses.FrozenInstanceError):
         p.x = 5.0  # type: ignore[misc]
 
 

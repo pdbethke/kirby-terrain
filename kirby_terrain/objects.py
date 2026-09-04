@@ -16,18 +16,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from kirby_terrain.durability import OBJECT_DURABILITY
+from kirby_terrain.durability import OBJECT_DURABILITY, ObjectDurability
 from kirby_terrain.geometry import Polygon, Segment
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class TerrainObject:
     """One piece of terrain: a wall, a door, a window, a floor, a zone."""
 
     id: str
     name: str
-    #: What this IS, keyed to `OBJECT_DURABILITY` (6E2 p173).
-    kind: str
+    #: What this IS, keyed to `OBJECT_DURABILITY` (6E2 p173). None means
+    #: "not identified" — a floor, a tree, a vehicle, a hazard zone, anything
+    #: the table has no row for. When `kind` is None the caller must supply
+    #: all three of `pd_override`, `ed_override` and `body_override`.
+    kind: str | None = None
     shape: Segment | Polygon
     height_m: float
 
@@ -44,30 +47,52 @@ class TerrainObject:
     body_override: int | None = None
 
     def __post_init__(self) -> None:
-        if self.kind not in OBJECT_DURABILITY:
+        if self.kind is None:
+            missing = [
+                name
+                for name, value in (
+                    ("pd_override", self.pd_override),
+                    ("ed_override", self.ed_override),
+                    ("body_override", self.body_override),
+                )
+                if value is None
+            ]
+            if missing:
+                raise ValueError(
+                    "an unidentified object (kind=None) must state its own "
+                    f"durability; missing: {', '.join(missing)}."
+                )
+        elif self.kind not in OBJECT_DURABILITY:
             raise ValueError(
                 f"unknown terrain kind: {self.kind!r}. "
                 f"Known kinds are the rows of the 6E2 p173 Objects Table."
             )
 
     @property
-    def _row(self):
-        return OBJECT_DURABILITY[self.kind]
+    def _row(self) -> ObjectDurability | None:
+        return None if self.kind is None else OBJECT_DURABILITY[self.kind]
 
     @property
     def pd(self) -> int:
-        return self._row.pd if self.pd_override is None else self.pd_override
+        if self.pd_override is not None:
+            return self.pd_override
+        return self._row.pd
 
     @property
     def ed(self) -> int:
-        return self._row.ed if self.ed_override is None else self.ed_override
+        if self.ed_override is not None:
+            return self.ed_override
+        return self._row.ed
 
     @property
     def body(self) -> int:
-        return self._row.body if self.body_override is None else self.body_override
+        if self.body_override is not None:
+            return self.body_override
+        return self._row.body
 
     @property
     def resistant(self) -> bool:
         """Whether the defense applies against Killing damage. A property of
-        the material, so it is never overridden per object."""
-        return self._row.resistant
+        the material, so it is never overridden per object. An unidentified
+        object (kind=None) defaults to True — a plain solid object."""
+        return True if self._row is None else self._row.resistant

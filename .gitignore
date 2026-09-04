@@ -15,3 +15,5 @@ build/
 # Any venv variant, not just the exact name .venv — a renamed one
 # slipped past and could put large directories into a commit.
 .venv*/
+
+.superpowers/
