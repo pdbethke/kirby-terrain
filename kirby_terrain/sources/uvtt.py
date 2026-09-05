@@ -80,7 +80,7 @@ def read_uvtt(
             objects.append(
                 TerrainObject(
                     id=object_id,
-                    name=object_id,
+                    name=wall_kind,
                     kind=wall_kind,
                     shape=shape,
                     height_m=wall_height_m,
@@ -91,4 +91,45 @@ def read_uvtt(
                     # TerrainObject's default.
                 )
             )
+
+    # `portals` is optional in the format — a map with no doors omits the
+    # key entirely, so absent must read as empty, not as an error.
+    for portal_index, portal in enumerate(document.get("portals", [])):
+        a, b = portal["bounds"]
+        shape = Segment(
+            start=Point(
+                _to_metres(a["x"], metres_per_square),
+                _to_metres(a["y"], metres_per_square),
+            ),
+            end=Point(
+                _to_metres(b["x"], metres_per_square),
+                _to_metres(b["y"], metres_per_square),
+            ),
+        )
+        if shape.is_degenerate:
+            continue
+        object_id = f"uvtt-portal-{portal_index}"
+        objects.append(
+            TerrainObject(
+                id=object_id,
+                name=portal_kind,
+                kind=portal_kind,
+                shape=shape,
+                height_m=wall_height_m,
+                # An open portal is a hole you can see through; it still
+                # occupies a doorway you must path through rather than
+                # over, so blocks_movement is always True regardless of
+                # `closed`.
+                blocks_los=portal["closed"],
+                blocks_movement=True,
+                # NOTE cross-check: on the sample map, this single portal
+                # is `closed: false` — and it is the very same physical
+                # object that this map's Foundry Scene export encodes as
+                # a wall with `sense: 0` (does not block sight). A window:
+                # see-through, not walk-through. Two independent formats
+                # describing one object differently is a fidelity
+                # cross-check the design relies on; it is recorded here,
+                # not smoothed away.
+            )
+        )
     return objects

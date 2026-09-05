@@ -157,3 +157,58 @@ def test_a_non_positive_scale_is_rejected():
     added this guard; nothing exercised it."""
     with pytest.raises(ValueError, match="metres_per_square"):
         _read(metres_per_square=0.0)
+
+
+def test_every_portal_becomes_an_object():
+    document = json.loads(FIXTURE.read_text())
+    portals = [o for o in _read() if o.kind == "interior wood door"]
+    assert len(portals) == len(document["portals"])
+
+
+def test_a_portal_spans_its_bounds_in_metres():
+    from kirby_terrain.geometry import Segment
+
+    document = json.loads(FIXTURE.read_text())
+    a, b = document["portals"][0]["bounds"]
+    portal = next(o for o in _read() if o.kind == "interior wood door")
+    assert isinstance(portal.shape, Segment)
+    assert portal.shape.start.x == pytest.approx(a["x"] * FIVE_FEET_M)
+    assert portal.shape.end.x == pytest.approx(b["x"] * FIVE_FEET_M)
+
+
+def test_an_open_portal_can_be_seen_through_but_not_walked_through(tmp_path):
+    """The sample map's one portal is `closed: false` — the same object the
+    Foundry export calls a wall that does not block sight. A window."""
+    document = json.loads(FIXTURE.read_text())
+    assert document["portals"][0]["closed"] is False
+    portal = next(o for o in _read() if o.kind == "interior wood door")
+    assert portal.blocks_los is False
+    assert portal.blocks_movement is True
+
+
+def test_a_closed_portal_blocks_sight(tmp_path):
+    document = json.loads(FIXTURE.read_text())
+    document["portals"][0]["closed"] = True
+    shut = tmp_path / "shut.dd2vtt"
+    shut.write_text(json.dumps(document))
+    portal = next(o for o in read_uvtt(
+        shut, metres_per_square=FIVE_FEET_M, wall_kind="brick wall",
+        portal_kind="interior wood door", wall_height_m=4.0)
+        if o.kind == "interior wood door")
+    assert portal.blocks_los is True
+
+
+def test_portals_carry_their_own_kind_not_the_wall_kind():
+    portal = next(o for o in _read() if o.kind == "interior wood door")
+    assert (portal.pd, portal.ed, portal.body) == (2, 2, 3)
+
+
+def test_a_document_with_no_portals_key_still_reads(tmp_path):
+    """`portals` is optional in the format; a map with no doors omits it."""
+    document = json.loads(FIXTURE.read_text())
+    document.pop("portals", None)
+    nodoors = tmp_path / "nodoors.dd2vtt"
+    nodoors.write_text(json.dumps(document))
+    assert read_uvtt(nodoors, metres_per_square=FIVE_FEET_M,
+                     wall_kind="brick wall", portal_kind="interior wood door",
+                     wall_height_m=4.0)
