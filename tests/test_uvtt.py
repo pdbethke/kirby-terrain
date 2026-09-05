@@ -212,3 +212,12 @@ def test_a_document_with_no_portals_key_still_reads(tmp_path):
     assert read_uvtt(nodoors, metres_per_square=FIVE_FEET_M,
                      wall_kind="brick wall", portal_kind="interior wood door",
                      wall_height_m=4.0)
+
+
+def test_the_reader_is_on_the_import_surface():
+    """A consumer should not reach two levels deep for the thing the
+    package exists to do."""
+    import kirby_terrain
+
+    assert kirby_terrain.read_uvtt is read_uvtt
+    assert "read_uvtt" in kirby_terrain.__all__

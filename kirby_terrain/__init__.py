@@ -5,12 +5,14 @@ Zero dependencies and no rules. Geometry is metres throughout; durability
 comes from the HERO System 6E2 p173 Objects Table. What a wall DOES in a
 fight belongs to kirby-combat, not here.
 
-Readers for map-tool exports (Universal VTT, Foundry Scene JSON) arrive in
-a later change and are the only code that will know a file format.
+`read_uvtt` reads Universal VTT exports; it and any reader that follows are
+the only code here that will know a file format. Foundry Scene JSON is
+later work.
 """
 from kirby_terrain.durability import OBJECT_DURABILITY, ObjectDurability
 from kirby_terrain.geometry import Point, Polygon, Segment
 from kirby_terrain.objects import TerrainObject
+from kirby_terrain.sources.uvtt import read_uvtt
 
 __all__ = [
     "OBJECT_DURABILITY",
@@ -19,4 +21,5 @@ __all__ = [
     "Polygon",
     "Segment",
     "TerrainObject",
+    "read_uvtt",
 ]

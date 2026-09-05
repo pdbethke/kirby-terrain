@@ -2,6 +2,19 @@
 
 All notable changes to `kirby-terrain` are documented in this file.
 
+## 0.2.0
+
+- **`read_uvtt`.** Reads a Universal VTT export (`.dd2vtt` / `.uvtt` /
+  `.df2vtt`) into `TerrainObject`s: walls from `line_of_sight` (one object
+  per polyline segment, so a polyline of N points becomes N−1 walls), and
+  doors/windows from `portals`. Exported from the package root as
+  `kirby_terrain.read_uvtt`.
+- **Four required keyword arguments, no defaults.** The format carries no
+  real-world scale, no materials and no heights, so `metres_per_square`,
+  `wall_kind`, `portal_kind` and `wall_height_m` must be supplied by the
+  caller — a guessed default would be silently wrong on any map built to
+  another convention.
+
 ## 0.1.0
 
 Initial release.
