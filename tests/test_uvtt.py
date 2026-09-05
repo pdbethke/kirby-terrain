@@ -59,7 +59,25 @@ def test_a_file_that_is_not_uvtt_is_rejected_by_name(tmp_path):
                   portal_kind="interior wood door", wall_height_m=4.0)
 
 
-def test_scale_converts_grid_units_to_metres(tmp_path):
+def test_wall_kind_has_no_default():
+    with pytest.raises(TypeError):
+        read_uvtt(FIXTURE, metres_per_square=FIVE_FEET_M,  # type: ignore[call-arg]
+                  portal_kind="interior wood door", wall_height_m=4.0)
+
+
+def test_portal_kind_has_no_default():
+    with pytest.raises(TypeError):
+        read_uvtt(FIXTURE, metres_per_square=FIVE_FEET_M,  # type: ignore[call-arg]
+                  wall_kind="brick wall", wall_height_m=4.0)
+
+
+def test_wall_height_m_has_no_default():
+    with pytest.raises(TypeError):
+        read_uvtt(FIXTURE, metres_per_square=FIVE_FEET_M,  # type: ignore[call-arg]
+                  wall_kind="brick wall", portal_kind="interior wood door")
+
+
+def test_scale_converts_grid_units_to_metres():
     """One square across, at 5 ft to the square, is 1.524 m — not 150 of
     anything. The reader is where units stop being the file's and start
     being this platform's."""
@@ -71,7 +89,9 @@ def test_scale_converts_grid_units_to_metres(tmp_path):
 
 
 def test_reading_the_real_fixture_returns_a_list():
-    assert isinstance(_read(), list)
+    result = _read()
+    assert isinstance(result, list)
+    assert result
 
 
 def test_every_polyline_segment_becomes_an_object():
@@ -84,7 +104,9 @@ def test_every_polyline_segment_becomes_an_object():
 
 
 def test_walls_carry_the_kind_they_were_told():
-    for wall in (o for o in _read() if o.kind == "brick wall"):
+    walls = [o for o in _read() if o.kind == "brick wall"]
+    assert walls
+    for wall in walls:
         assert (wall.pd, wall.ed, wall.body) == (5, 10, 3)
 
 
@@ -173,10 +195,12 @@ def test_a_portal_spans_its_bounds_in_metres():
     portal = next(o for o in _read() if o.kind == "interior wood door")
     assert isinstance(portal.shape, Segment)
     assert portal.shape.start.x == pytest.approx(a["x"] * FIVE_FEET_M)
+    assert portal.shape.start.y == pytest.approx(a["y"] * FIVE_FEET_M)
     assert portal.shape.end.x == pytest.approx(b["x"] * FIVE_FEET_M)
+    assert portal.shape.end.y == pytest.approx(b["y"] * FIVE_FEET_M)
 
 
-def test_an_open_portal_can_be_seen_through_but_not_walked_through(tmp_path):
+def test_an_open_portal_can_be_seen_through_but_not_walked_through():
     """The sample map's one portal is `closed: false` — the same object the
     Foundry export calls a wall that does not block sight. A window."""
     document = json.loads(FIXTURE.read_text())
@@ -209,9 +233,171 @@ def test_a_document_with_no_portals_key_still_reads(tmp_path):
     document.pop("portals", None)
     nodoors = tmp_path / "nodoors.dd2vtt"
     nodoors.write_text(json.dumps(document))
-    assert read_uvtt(nodoors, metres_per_square=FIVE_FEET_M,
-                     wall_kind="brick wall", portal_kind="interior wood door",
-                     wall_height_m=4.0)
+    objects = read_uvtt(nodoors, metres_per_square=FIVE_FEET_M,
+                        wall_kind="brick wall", portal_kind="interior wood door",
+                        wall_height_m=4.0)
+    walls = [o for o in objects if o.kind == "brick wall"]
+    portals = [o for o in objects if o.kind == "interior wood door"]
+    assert len(walls) == 33
+    assert len(portals) == 0
+
+
+def test_a_string_closed_is_rejected_not_coerced(tmp_path):
+    """`bool("false")` is `True` — coercing `closed` with `bool()` would make
+    a wide-open door read as sight-blocking, silently. A non-bool `closed`
+    must be an error, not a value the reader guesses at."""
+    document = json.loads(FIXTURE.read_text())
+    document["portals"][0]["closed"] = "false"
+    bad = tmp_path / "stringclosed.dd2vtt"
+    bad.write_text(json.dumps(document))
+    with pytest.raises(ValueError, match="non-boolean"):
+        read_uvtt(bad, metres_per_square=FIVE_FEET_M, wall_kind="brick wall",
+                  portal_kind="interior wood door", wall_height_m=4.0)
+
+
+def _write(tmp_path, document, name="bad.dd2vtt"):
+    path = tmp_path / name
+    path.write_text(json.dumps(document))
+    return path
+
+
+class TestMalformedGeometryNamesTheFileAndLocation:
+    """Every row of the review's table: today these raise KeyError/TypeError
+    naming neither the file nor the point. They must raise ValueError naming
+    both."""
+
+    def _base_document(self):
+        return json.loads(FIXTURE.read_text())
+
+    def _read(self, path):
+        return read_uvtt(path, metres_per_square=FIVE_FEET_M,
+                         wall_kind="brick wall",
+                         portal_kind="interior wood door", wall_height_m=4.0)
+
+    def test_point_missing_y(self, tmp_path):
+        document = self._base_document()
+        document["line_of_sight"] = [[{"x": 1.0}, {"x": 2.0, "y": 2.0}]]
+        document["portals"] = []
+        path = _write(tmp_path, document)
+        with pytest.raises(ValueError, match=r"bad\.dd2vtt.*line_of_sight\[0\]"):
+            self._read(path)
+
+    def test_coordinate_is_a_string(self, tmp_path):
+        document = self._base_document()
+        document["line_of_sight"] = [[{"x": "12", "y": 1.0}, {"x": 2.0, "y": 2.0}]]
+        document["portals"] = []
+        path = _write(tmp_path, document)
+        with pytest.raises(ValueError, match=r"bad\.dd2vtt.*line_of_sight\[0\]"):
+            self._read(path)
+
+    def test_coordinate_is_null(self, tmp_path):
+        document = self._base_document()
+        document["line_of_sight"] = [[{"x": None, "y": 1.0}, {"x": 2.0, "y": 2.0}]]
+        document["portals"] = []
+        path = _write(tmp_path, document)
+        with pytest.raises(ValueError, match=r"bad\.dd2vtt.*line_of_sight\[0\]"):
+            self._read(path)
+
+    def test_coordinate_is_a_bool(self, tmp_path):
+        """`True` is an `int` in Python; a coordinate of `True` is still a
+        malformed file, not a valid `1`."""
+        document = self._base_document()
+        document["line_of_sight"] = [[{"x": True, "y": 1.0}, {"x": 2.0, "y": 2.0}]]
+        document["portals"] = []
+        path = _write(tmp_path, document)
+        with pytest.raises(ValueError, match=r"bad\.dd2vtt.*line_of_sight\[0\]"):
+            self._read(path)
+
+    def test_point_is_not_a_mapping(self, tmp_path):
+        document = self._base_document()
+        document["line_of_sight"] = [[[1.0, 1.0], {"x": 2.0, "y": 2.0}]]
+        document["portals"] = []
+        path = _write(tmp_path, document)
+        with pytest.raises(ValueError, match=r"bad\.dd2vtt.*line_of_sight\[0\]"):
+            self._read(path)
+
+    def test_portal_bounds_has_three_points(self, tmp_path):
+        document = self._base_document()
+        document["portals"][0]["bounds"] = [
+            {"x": 0.0, "y": 0.0}, {"x": 1.0, "y": 0.0}, {"x": 1.0, "y": 1.0},
+        ]
+        path = _write(tmp_path, document)
+        with pytest.raises(ValueError, match=r"bad\.dd2vtt.*portals\[0\]"):
+            self._read(path)
+
+    def test_portal_missing_bounds(self, tmp_path):
+        document = self._base_document()
+        del document["portals"][0]["bounds"]
+        path = _write(tmp_path, document)
+        with pytest.raises(ValueError, match=r"bad\.dd2vtt.*portals\[0\]"):
+            self._read(path)
+
+    def test_portal_missing_closed(self, tmp_path):
+        document = self._base_document()
+        del document["portals"][0]["closed"]
+        path = _write(tmp_path, document)
+        with pytest.raises(ValueError, match=r"bad\.dd2vtt.*portals\[0\]"):
+            self._read(path)
+
+
+def test_line_of_sight_that_is_a_dict_is_rejected(tmp_path):
+    """A dict iterates as its keys and `pairwise` over a one-character
+    string yields nothing — today this silently returns 0 walls instead of
+    raising. Only wrong TYPES should raise; an empty list is legal."""
+    document = json.loads(FIXTURE.read_text())
+    document["line_of_sight"] = {"a": 1}
+    path = tmp_path / "dictlos.dd2vtt"
+    path.write_text(json.dumps(document))
+    with pytest.raises(ValueError, match=r"dictlos\.dd2vtt.*line_of_sight"):
+        read_uvtt(path, metres_per_square=FIVE_FEET_M, wall_kind="brick wall",
+                  portal_kind="interior wood door", wall_height_m=4.0)
+
+
+def test_a_polyline_that_is_not_a_list_is_rejected(tmp_path):
+    document = json.loads(FIXTURE.read_text())
+    document["line_of_sight"] = ["not a polyline"]
+    document["portals"] = []
+    path = tmp_path / "badpolyline.dd2vtt"
+    path.write_text(json.dumps(document))
+    with pytest.raises(ValueError, match=r"badpolyline\.dd2vtt.*line_of_sight\[0\]"):
+        read_uvtt(path, metres_per_square=FIVE_FEET_M, wall_kind="brick wall",
+                  portal_kind="interior wood door", wall_height_m=4.0)
+
+
+def test_an_empty_line_of_sight_is_legal(tmp_path):
+    """A map may genuinely have no walls. Empty is not malformed."""
+    document = json.loads(FIXTURE.read_text())
+    document["line_of_sight"] = []
+    document["portals"] = []
+    path = tmp_path / "nowalls.dd2vtt"
+    path.write_text(json.dumps(document))
+    assert read_uvtt(path, metres_per_square=FIVE_FEET_M, wall_kind="brick wall",
+                     portal_kind="interior wood door", wall_height_m=4.0) == []
+
+
+def test_a_single_point_polyline_is_legal(tmp_path):
+    """One point makes zero segments via pairwise — odd, but not an error."""
+    document = json.loads(FIXTURE.read_text())
+    document["line_of_sight"] = [[{"x": 1.0, "y": 1.0}]]
+    document["portals"] = []
+    path = tmp_path / "onepoint.dd2vtt"
+    path.write_text(json.dumps(document))
+    assert read_uvtt(path, metres_per_square=FIVE_FEET_M, wall_kind="brick wall",
+                     portal_kind="interior wood door", wall_height_m=4.0) == []
+
+
+def test_a_non_ascii_value_reads_correctly(tmp_path):
+    """json.loads(path.read_text()) decodes with the machine's default
+    encoding; JSON is UTF-8 by specification. Use read_bytes() and let json
+    detect it, so this doesn't silently mangle on a non-UTF-8-default
+    machine (notably Windows)."""
+    document = json.loads(FIXTURE.read_text())
+    document["format_note"] = "Kürbis-Lagerhaus — a warehouse, in German"
+    path = tmp_path / "nonascii.dd2vtt"
+    path.write_bytes(json.dumps(document, ensure_ascii=False).encode("utf-8"))
+    result = read_uvtt(path, metres_per_square=FIVE_FEET_M, wall_kind="brick wall",
+                       portal_kind="interior wood door", wall_height_m=4.0)
+    assert result
 
 
 def test_the_reader_is_on_the_import_surface():

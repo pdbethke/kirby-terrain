@@ -50,7 +50,7 @@ wall.pd, wall.ed, wall.body  # (5, 10, 3), from the table
 
 ### Universal VTT
 
-`read_uvtt` reads a Universal VTT export (`.dd2vtt` / `.uvtt` / `.df2vtt` — the format created for Dungeondraft and also emitted by other map tools, including Dungeon Alchemist) into a list of `TerrainObject`. Walls come from `line_of_sight`, one object per polyline segment — a polyline of N points becomes N−1 walls. Portals come from `portals`, as doors and windows.
+`read_uvtt` reads a Universal VTT export (`.dd2vtt` / `.uvtt` / `.df2vtt` — the format created for Dungeondraft and also emitted by other map tools, including Dungeon Alchemist) into a list of `TerrainObject`. Walls come from `line_of_sight`, one object per polyline segment — a polyline of N points becomes N−1 walls, though degenerate (zero-length) segments are dropped, so the count can be lower. Portals come from `portals`, as doors and windows.
 
 ```python
 from kirby_terrain import read_uvtt

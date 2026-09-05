@@ -14,6 +14,12 @@ WHAT THIS FORMAT DOES NOT TELL YOU, measured against a real export:
   * **No materials.** Nothing says what a wall is made of, so `wall_kind`
     and `portal_kind` are required too.
   * **No heights.** A plan view has none, so `wall_height_m` is required.
+  * **`map_origin` is assumed zero.** `resolution.map_origin` exists in the
+    format but this reader never reads it — `line_of_sight` and `portals`
+    coordinates are treated as already absolute. The fixture happens to
+    carry `map_origin: {0, 0}`, so a nonzero origin has never been
+    exercised against this reader; if one turns up, this assumption is the
+    first place to look.
 
 Every one of those is an assumption the caller makes, and requiring them
 puts all four on one visible line at the call site.
@@ -37,6 +43,41 @@ def _to_metres(grid_units: float, metres_per_square: float) -> float:
     return grid_units * metres_per_square
 
 
+def _point(raw: object, metres_per_square: float, where: str) -> Point:
+    """One point, in metres. `where` names the location for error messages."""
+    if not isinstance(raw, dict):
+        # ValueError, not TypeError: every other malformed-document error in
+        # this reader (missing keys, bad bounds shape, non-bool `closed`) is
+        # a ValueError naming the file and location, and this is one more
+        # row of the same table, not a distinct category of failure.
+        raise ValueError(f"{where}: expected a point object, got {raw!r}")  # noqa: TRY004
+    missing = [k for k in ("x", "y") if k not in raw]
+    if missing:
+        raise ValueError(f"{where}: point is missing {', '.join(missing)}: {raw!r}")
+    coords = {}
+    for axis in ("x", "y"):
+        value = raw[axis]
+        # bool is a subclass of int in Python, and a coordinate of True/False
+        # is a malformed file, not a 1.0/0.0 one — reject it explicitly.
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(  # noqa: TRY004 -- ValueError by design, see above
+                f"{where}: point has a non-numeric '{axis}': {value!r}"
+            )
+        coords[axis] = value
+    return Point(
+        _to_metres(coords["x"], metres_per_square),
+        _to_metres(coords["y"], metres_per_square),
+    )
+
+
+def _segment(a: object, b: object, metres_per_square: float, where: str) -> Segment:
+    """Two points, in metres, as a Segment."""
+    return Segment(
+        start=_point(a, metres_per_square, f"{where} 0"),
+        end=_point(b, metres_per_square, f"{where} 1"),
+    )
+
+
 def read_uvtt(
     path: str | Path,
     *,
@@ -51,7 +92,10 @@ def read_uvtt(
     module docstring for why none of them has a default.
     """
     path = Path(path)
-    document = json.loads(path.read_text())
+    # UTF-8 is what JSON is by specification; read_text() would decode with
+    # the machine's default encoding instead, which is wrong on Windows and
+    # this is a published package that will meet Windows machines.
+    document = json.loads(path.read_bytes())
     missing = [k for k in _REQUIRED_KEYS if k not in document]
     if missing:
         raise ValueError(
@@ -61,19 +105,23 @@ def read_uvtt(
     if metres_per_square <= 0:
         raise ValueError(f"metres_per_square must be positive, got {metres_per_square}")
 
+    line_of_sight = document["line_of_sight"]
+    if not isinstance(line_of_sight, list):
+        raise ValueError(  # noqa: TRY004 -- ValueError by design, see above
+            f"{path.name}: line_of_sight must be a list, got "
+            f"{type(line_of_sight).__name__}"
+        )
+
     objects: list[TerrainObject] = []
-    for line_index, line in enumerate(document["line_of_sight"]):
-        for segment_index, (a, b) in enumerate(pairwise(line)):
-            shape = Segment(
-                start=Point(
-                    _to_metres(a["x"], metres_per_square),
-                    _to_metres(a["y"], metres_per_square),
-                ),
-                end=Point(
-                    _to_metres(b["x"], metres_per_square),
-                    _to_metres(b["y"], metres_per_square),
-                ),
+    for line_index, line in enumerate(line_of_sight):
+        if not isinstance(line, list):
+            raise ValueError(  # noqa: TRY004 -- ValueError by design, see above
+                f"{path.name}: line_of_sight[{line_index}] must be a list "
+                f"of points, got {type(line).__name__}"
             )
+        for segment_index, (a, b) in enumerate(pairwise(line)):
+            where = f"{path.name}: line_of_sight[{line_index}] point"
+            shape = _segment(a, b, metres_per_square, where)
             if shape.is_degenerate:
                 continue
             object_id = f"uvtt-los-{line_index}-{segment_index}"
@@ -95,19 +143,30 @@ def read_uvtt(
     # `portals` is optional in the format — a map with no doors omits the
     # key entirely, so absent must read as empty, not as an error.
     for portal_index, portal in enumerate(document.get("portals", [])):
-        a, b = portal["bounds"]
-        shape = Segment(
-            start=Point(
-                _to_metres(a["x"], metres_per_square),
-                _to_metres(a["y"], metres_per_square),
-            ),
-            end=Point(
-                _to_metres(b["x"], metres_per_square),
-                _to_metres(b["y"], metres_per_square),
-            ),
-        )
+        if "bounds" not in portal:
+            raise ValueError(f"{path.name}: portals[{portal_index}] is missing 'bounds'")
+        bounds = portal["bounds"]
+        if not isinstance(bounds, (list, tuple)) or len(bounds) != 2:
+            raise ValueError(
+                f"{path.name}: portals[{portal_index}] bounds must be exactly "
+                f"two points, got {bounds!r}"
+            )
+        a, b = bounds
+        where = f"{path.name}: portals[{portal_index}] bounds point"
+        shape = _segment(a, b, metres_per_square, where)
         if shape.is_degenerate:
             continue
+        if "closed" not in portal:
+            raise ValueError(f"{path.name}: portals[{portal_index}] is missing 'closed'")
+        closed = portal["closed"]
+        # `bool(closed)` does NOT belong here: bool("false") is True. A
+        # document with "closed": "false" (the string) must be rejected,
+        # not silently read as a shut door.
+        if not isinstance(closed, bool):
+            raise ValueError(  # noqa: TRY004 -- ValueError by design, see above
+                f"{path.name}: portals[{portal_index}] has a non-boolean "
+                f"'closed': {closed!r}"
+            )
         object_id = f"uvtt-portal-{portal_index}"
         objects.append(
             TerrainObject(
@@ -120,8 +179,15 @@ def read_uvtt(
                 # occupies a doorway you must path through rather than
                 # over, so blocks_movement is always True regardless of
                 # `closed`.
-                blocks_los=portal["closed"],
+                blocks_los=closed,
                 blocks_movement=True,
+                # `closed` drives blocks_los above, is deliberately
+                # overridden for blocks_movement (always True), and is
+                # simply ignored for blocks_sound, which is left at
+                # TerrainObject's default — so an open window reads as
+                # sound-blocking. UVTT does not state sound-blocking at
+                # all, for walls or portals alike.
+                #
                 # NOTE cross-check: on the sample map, this single portal
                 # is `closed: false` — and it is the very same physical
                 # object that this map's Foundry Scene export encodes as

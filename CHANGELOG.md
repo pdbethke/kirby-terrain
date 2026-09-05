@@ -6,7 +6,8 @@ All notable changes to `kirby-terrain` are documented in this file.
 
 - **`read_uvtt`.** Reads a Universal VTT export (`.dd2vtt` / `.uvtt` /
   `.df2vtt`) into `TerrainObject`s: walls from `line_of_sight` (one object
-  per polyline segment, so a polyline of N points becomes N−1 walls), and
+  per polyline segment, so a polyline of N points becomes N−1 walls, though
+  degenerate segments are dropped so the count can be lower), and
   doors/windows from `portals`. Exported from the package root as
   `kirby_terrain.read_uvtt`.
 - **Four required keyword arguments, no defaults.** The format carries no
@@ -14,6 +15,13 @@ All notable changes to `kirby-terrain` are documented in this file.
   `wall_kind`, `portal_kind` and `wall_height_m` must be supplied by the
   caller — a guessed default would be silently wrong on any map built to
   another convention.
+- **Malformed geometry and a non-boolean `closed` now raise `ValueError`**
+  naming the file and the location, instead of a bare `KeyError`/`TypeError`
+  from somewhere inside the reader. A portal's `closed` value that is not an
+  actual `bool` (e.g. the string `"false"`, which is truthy) is rejected
+  rather than coerced. `line_of_sight` must be a list of lists; an empty
+  list or a one-point polyline is still legal. The document is now read as
+  bytes so JSON's UTF-8 is honoured regardless of the machine's locale.
 
 ## 0.1.0
 
