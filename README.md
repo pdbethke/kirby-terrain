@@ -48,7 +48,25 @@ wall.pd, wall.ed, wall.body  # (5, 10, 3), from the table
 
 ## Map Readers
 
-Readers for map-tool exports (FoundryVTT, etc.) arrive in a later change. They translate whatever units an export uses into metres and instantiate these types.
+### Universal VTT
+
+`read_uvtt` reads a Universal VTT export (`.dd2vtt` / `.uvtt` / `.df2vtt` — the format created for Dungeondraft and also emitted by other map tools, including Dungeon Alchemist) into a list of `TerrainObject`. Walls come from `line_of_sight`, one object per polyline segment — a polyline of N points becomes N−1 walls, though degenerate (zero-length) segments are dropped, so the count can be lower. Portals come from `portals`, as doors and windows.
+
+```python
+from kirby_terrain import read_uvtt
+
+objects = read_uvtt(
+    "warehouse.dd2vtt",
+    metres_per_square=1.524,
+    wall_kind="brick wall",
+    portal_kind="interior wood door",
+    wall_height_m=4.0,
+)
+```
+
+All four keyword arguments are required, and each names something the format does not state: it carries no real-world scale, no materials, and no heights, so `metres_per_square`, `wall_kind`, `portal_kind` and `wall_height_m` are assumptions the caller must make explicit rather than defaults this package could silently guess wrong.
+
+Foundry Scene JSON is later work, and is not read by this package yet.
 
 ## License
 

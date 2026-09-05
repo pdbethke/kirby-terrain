@@ -1,6 +1,6 @@
 [project]
 name = "kirby-terrain"
-version = "0.1.0"
+version = "0.2.0"
 description = "Terrain objects, geometry and durability for the Kirby HERO System platform"
 requires-python = ">=3.12"
 license = {text = "PolyForm Noncommercial License 1.0.0"}
