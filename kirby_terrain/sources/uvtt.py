@@ -21,8 +21,10 @@ puts all four on one visible line at the call site.
 from __future__ import annotations
 
 import json
+from itertools import pairwise
 from pathlib import Path
 
+from kirby_terrain.geometry import Point, Segment
 from kirby_terrain.objects import TerrainObject
 
 #: Keys a Universal VTT document must have. A Foundry Scene export is also
@@ -58,4 +60,35 @@ def read_uvtt(
         )
     if metres_per_square <= 0:
         raise ValueError(f"metres_per_square must be positive, got {metres_per_square}")
-    return []
+
+    objects: list[TerrainObject] = []
+    for line_index, line in enumerate(document["line_of_sight"]):
+        for segment_index, (a, b) in enumerate(pairwise(line)):
+            shape = Segment(
+                start=Point(
+                    _to_metres(a["x"], metres_per_square),
+                    _to_metres(a["y"], metres_per_square),
+                ),
+                end=Point(
+                    _to_metres(b["x"], metres_per_square),
+                    _to_metres(b["y"], metres_per_square),
+                ),
+            )
+            if shape.is_degenerate:
+                continue
+            object_id = f"uvtt-los-{line_index}-{segment_index}"
+            objects.append(
+                TerrainObject(
+                    id=object_id,
+                    name=object_id,
+                    kind=wall_kind,
+                    shape=shape,
+                    height_m=wall_height_m,
+                    blocks_los=True,
+                    blocks_movement=True,
+                    # UVTT does not carry sound-blocking per wall, unlike
+                    # the Foundry Scene format — blocks_sound is left at
+                    # TerrainObject's default.
+                )
+            )
+    return objects
