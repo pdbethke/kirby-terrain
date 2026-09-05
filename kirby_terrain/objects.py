@@ -34,6 +34,16 @@ class TerrainObject:
     shape: Segment | Polygon
     height_m: float
 
+    #: The band of space a ZONE occupies, as (lowest, highest) in metres,
+    #: relative to the ground plane. None means ordinary terrain that stands
+    #: on the ground and is described by `height_m`.
+    #:
+    #: A band rather than a signed height, matching the combat engine's own
+    #: `Construct.elevation_range_m`: it describes a pool two metres deep as
+    #: (-2.0, 0.0), a submerged pipe as (-5.0, -3.0), or a gas cloud at head
+    #: height as (1.5, 3.0). A pool is NOT a hole in the floor.
+    elevation_range_m: tuple[float, float] | None = None
+
     blocks_los: bool = True
     blocks_movement: bool = True
     #: Carried because one map format states it per wall and Kirby's
@@ -47,7 +57,30 @@ class TerrainObject:
     body_override: int | None = None
 
     def __post_init__(self) -> None:
+        if self.elevation_range_m is not None:
+            band = tuple(self.elevation_range_m)
+            if len(band) != 2:
+                raise ValueError(
+                    f"elevation_range_m must be (lowest, highest); got {band!r}"
+                )
+            if band[0] > band[1]:
+                raise ValueError(
+                    f"elevation_range_m is backwards: {band!r}. It reads "
+                    "(lowest, highest), so a pool two metres deep is "
+                    "(-2.0, 0.0)."
+                )
+            object.__setattr__(self, "elevation_range_m", band)
+
         if self.kind is None:
+            stated = [
+                name
+                for name, value in (
+                    ("pd_override", self.pd_override),
+                    ("ed_override", self.ed_override),
+                    ("body_override", self.body_override),
+                )
+                if value is not None
+            ]
             missing = [
                 name
                 for name, value in (
@@ -57,10 +90,16 @@ class TerrainObject:
                 )
                 if value is None
             ]
-            if missing:
+            # Three cases, and the middle one is the mistake:
+            #   none stated  -> not destructible at all. Water has no BODY.
+            #   some stated  -> a half-finished thought. Nothing means "pd 3
+            #                   and deliberately no ED".
+            #   all stated   -> unidentified but breakable, e.g. a crate.
+            if stated and missing:
                 raise ValueError(
-                    "an unidentified object (kind=None) must state its own "
-                    f"durability; missing: {', '.join(missing)}."
+                    "an object stating some of its own durability must state "
+                    f"all of it; missing: {', '.join(missing)}. State none at "
+                    "all for terrain that cannot be broken, such as water."
                 )
         elif self.kind not in OBJECT_DURABILITY:
             raise ValueError(
@@ -73,22 +112,32 @@ class TerrainObject:
         return None if self.kind is None else OBJECT_DURABILITY[self.kind]
 
     @property
-    def pd(self) -> int:
+    def pd(self) -> int | None:
         if self.pd_override is not None:
             return self.pd_override
-        return self._row.pd
+        return None if self._row is None else self._row.pd
 
     @property
-    def ed(self) -> int:
+    def ed(self) -> int | None:
         if self.ed_override is not None:
             return self.ed_override
-        return self._row.ed
+        return None if self._row is None else self._row.ed
 
     @property
-    def body(self) -> int:
+    def body(self) -> int | None:
         if self.body_override is not None:
             return self.body_override
-        return self._row.body
+        return None if self._row is None else self._row.body
+
+    @property
+    def destructible(self) -> bool:
+        """Whether this can be broken at all.
+
+        Mirrors the combat engine's `Construct.destructible`: no DEF and no
+        BODY means indestructible. Water, and open space, are not damaged by
+        hitting them.
+        """
+        return self.pd is not None
 
     @property
     def resistant(self) -> bool:

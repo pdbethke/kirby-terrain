@@ -96,3 +96,95 @@ def test_every_table_kind_can_build_an_object():
     holds but an object rejects would be found only at import time."""
     for kind in OBJECT_DURABILITY:
         assert _wall(kind=kind).kind == kind
+
+
+# ---------------------------------------------------------------------------
+# Zones: a slab of space, and things that cannot be broken
+# ---------------------------------------------------------------------------
+
+def _pool(**kw) -> TerrainObject:
+    """A rooftop pool: a polygon of water two metres deep.
+
+    Not a hole in the floor. The combat engine models a region of space as a
+    polygon plus an elevation BAND, and a band is more expressive than a
+    signed height — it describes a pool, a pit, a gas cloud at head height,
+    or the underside of a catwalk with one field.
+    """
+    base = {
+        "id": "pool", "name": "deep pool", "kind": None,
+        "shape": Polygon([Point(0.0, 0.0), Point(4.0, 0.0),
+                          Point(4.0, 4.0), Point(0.0, 4.0)]),
+        "height_m": 0.0,
+        "elevation_range_m": (-2.0, 0.0),
+    }
+    base.update(kw)
+    return TerrainObject(**base)
+
+
+def test_a_zone_occupies_an_elevation_band():
+    """Two metres below ground up to the surface."""
+    assert _pool().elevation_range_m == (-2.0, 0.0)
+
+
+def test_the_band_may_be_entirely_below_ground():
+    """The whole point of a band over a signed height: a submerged pipe
+    occupies space that neither starts nor ends at ground level."""
+    assert _pool(elevation_range_m=(-5.0, -3.0)).elevation_range_m == (-5.0, -3.0)
+
+
+def test_a_band_given_backwards_is_rejected():
+    """(0, -2) is not a band, it is a mistake. Accepting it silently gives
+    every consumer a range whose 'within' test can never be true."""
+    with pytest.raises(ValueError, match="elevation_range_m"):
+        _pool(elevation_range_m=(0.0, -2.0))
+
+
+def test_a_band_is_stored_as_a_tuple():
+    """A list would leave the frozen dataclass mutable in place, the same
+    trap Polygon.points had."""
+    assert isinstance(_pool(elevation_range_m=[-2.0, 0.0]).elevation_range_m, tuple)
+
+
+def test_most_terrain_has_no_band():
+    """A wall stands on the ground and height_m says how tall. None means
+    'ordinary', not 'zero-thickness'."""
+    w = TerrainObject(id="w", name="brick wall", kind="brick wall",
+                      shape=Segment(Point(0.0, 0.0), Point(5.0, 0.0)),
+                      height_m=4.0)
+    assert w.elevation_range_m is None
+
+
+def test_water_cannot_be_broken():
+    """A pool has no DEF and no BODY. Before this change TerrainObject
+    REQUIRED durability, so a pool could not be described at all."""
+    p = _pool()
+    assert (p.pd, p.ed, p.body) == (None, None, None)
+    assert p.destructible is False
+
+
+def test_a_wall_is_destructible():
+    """Guards the guard: if `destructible` were hardcoded False, the test
+    above would pass while every wall became unbreakable."""
+    w = TerrainObject(id="w", name="brick wall", kind="brick wall",
+                      shape=Segment(Point(0.0, 0.0), Point(5.0, 0.0)),
+                      height_m=4.0)
+    assert w.destructible is True
+    assert (w.pd, w.ed, w.body) == (5, 10, 3)
+
+
+def test_an_unidentified_object_with_full_overrides_is_still_destructible():
+    """kind=None means 'not identified', which is NOT the same as 'not
+    breakable'. A crate of unknown make still has BODY."""
+    crate = TerrainObject(id="c", name="crate", kind=None,
+                          shape=Segment(Point(0.0, 0.0), Point(1.0, 0.0)),
+                          height_m=1.0, pd_override=3, ed_override=2,
+                          body_override=4)
+    assert crate.destructible is True
+    assert (crate.pd, crate.ed, crate.body) == (3, 2, 4)
+
+
+def test_stating_some_durability_but_not_all_is_still_an_error():
+    """The ambiguous case stays an error. Nothing states pd but means 'and
+    no ED' — that is a half-finished thought, unlike stating none at all."""
+    with pytest.raises(ValueError, match="ed_override"):
+        _pool(pd_override=3)

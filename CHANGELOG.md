@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.3.0 — 2026-09-05
+
+**Terrain can describe a pool.**
+
+### Added
+
+`TerrainObject.elevation_range_m` — the band of space a zone occupies, as
+`(lowest, highest)` in metres relative to the ground plane. `None`, the
+default, means ordinary terrain standing on the ground and described by
+`height_m`.
+
+A band rather than a signed height, matching the combat engine's own
+`Construct.elevation_range_m`. It describes a pool two metres deep as
+`(-2.0, 0.0)`, a submerged pipe as `(-5.0, -3.0)`, or a gas cloud at head
+height as `(1.5, 3.0)`. **A pool is not a hole in the floor**, and a band
+says things a signed height cannot.
+
+A band given backwards is rejected rather than accepted silently — `(0.0,
+-2.0)` is not a range, it is a mistake, and every consumer's "is this
+inside?" test would simply never be true.
+
+`TerrainObject.destructible`, mirroring the engine's predicate.
+
+### Changed
+
+**Terrain may now have no durability at all.** `pd`, `ed` and `body` return
+`int | None`, and an object with `kind=None` that states no overrides is not
+destructible — water has no BODY, and hitting it does nothing.
+
+Previously an object with `kind=None` had to state all three, so a pool
+could not be expressed at all. Stating SOME but not all is still an error:
+nothing means "pd 3 and deliberately no ED", so that case is a
+half-finished thought rather than a statement about water.
+
+This closes a gap the module design named and the first implementation
+dropped: the spec said extent was "`height_m`, and an elevation range for
+zones", and only `height_m` was built.
+
+### Note
+
+No map format carries this. Neither Foundry Scene JSON nor Universal VTT
+has any notion of water, terrain type, or a region of space — they describe
+walls, portals and lights. A pool must be authored, or inferred from the
+rendered image. The object model can now hold one either way.
+
 All notable changes to `kirby-terrain` are documented in this file.
 
 ## 0.2.0
