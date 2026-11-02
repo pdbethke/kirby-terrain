@@ -14,6 +14,7 @@ These are the cover an arena places, so a generated map can stand a squad
 behind a car or a tree. Each has a single BODY value in the book, so none is
 omitted under the rule that leaves out ranged or open-ended rows.
 
+## 0.3.0 — 2026-09-05
 
 **Terrain can describe a pool.**
 
