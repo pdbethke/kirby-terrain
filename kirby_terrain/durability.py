@@ -37,7 +37,8 @@ class ObjectDurability:
     resistant: bool = True
 
 
-#: 6E2 p173, Objects Table -- the walls and doors a map import needs.
+#: 6E2 p173, Objects Table -- the walls, doors, vehicles, trees and furniture
+#: a map import needs, and the cover an arena places.
 OBJECT_DURABILITY: dict[str, ObjectDurability] = {
     # Walls
     "armored wall":             ObjectDurability(13, 18, 7),
@@ -60,4 +61,12 @@ OBJECT_DURABILITY: dict[str, ObjectDurability] = {
     # Glazing -- parenthesised in the book, so Normal Defense.
     "glass":                    ObjectDurability(1, 1, 1, resistant=False),
     "reinforced glass":         ObjectDurability(2, 2, 1, resistant=False),
+    # Vehicles
+    "automobile":               ObjectDurability(3, 3, 15),
+    "armored car":              ObjectDurability(8, 8, 18),
+    # Trees
+    "medium tree":              ObjectDurability(5, 4, 8),
+    "large tree":               ObjectDurability(5, 4, 11),
+    # Furniture
+    "furniture, heavy wood":    ObjectDurability(4, 3, 5),
 }
