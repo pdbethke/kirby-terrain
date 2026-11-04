@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0 — 2026-11-02
+
+**Terrain can describe cover.**
+
+### Added
+
+Five rows in `OBJECT_DURABILITY`, from the 6E2 p.173 Objects Table: Automobile
+(PD 3, ED 3, BODY 15), Armored car (8, 8, 18), Medium tree (5, 4, 8), Large
+tree (5, 4, 11) and Furniture, heavy wood (4, 3, 5). All five are resistant.
+
+These are the cover an arena places, so a generated map can stand a squad
+behind a car or a tree. Each has a single BODY value in the book, so none is
+omitted under the rule that leaves out ranged or open-ended rows.
+
 ## 0.3.0 — 2026-09-05
 
 **Terrain can describe a pool.**

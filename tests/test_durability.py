@@ -28,6 +28,11 @@ from kirby_terrain.durability import OBJECT_DURABILITY, ObjectDurability
     ("safe door", 10, 15, 9),
     ("glass", 1, 1, 1),
     ("reinforced glass", 2, 2, 1),
+    ("automobile", 3, 3, 15),
+    ("armored car", 8, 8, 18),
+    ("medium tree", 5, 4, 8),
+    ("large tree", 5, 4, 11),
+    ("furniture, heavy wood", 4, 3, 5),
 ])
 def test_row_matches_the_book(kind, pd, ed, body):
     row = OBJECT_DURABILITY[kind]
@@ -37,7 +42,16 @@ def test_row_matches_the_book(kind, pd, ed, body):
 def test_every_row_is_pinned():
     """Guards the guard. The parametrised list above must cover the WHOLE
     table — a guard that omits rows will not catch a typo in them."""
-    assert len(OBJECT_DURABILITY) == 18
+    assert len(OBJECT_DURABILITY) == 23
+
+
+def test_cover_objects_carry_the_objects_table_numbers():
+    rows = {k: (v.pd, v.ed, v.body, v.resistant) for k, v in OBJECT_DURABILITY.items()}
+    assert rows["automobile"] == (3, 3, 15, True)
+    assert rows["armored car"] == (8, 8, 18, True)
+    assert rows["medium tree"] == (5, 4, 8, True)
+    assert rows["large tree"] == (5, 4, 11, True)
+    assert rows["furniture, heavy wood"] == (4, 3, 5, True)
 
 
 def test_pd_and_ed_genuinely_differ_somewhere():
